@@ -116,7 +116,11 @@ OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...   # uncomment if using Claude
 ```
 
-## Run
+## Test it out directly in Stremlit
+
+https://legal-contract-analyser-zanzaj87.streamlit.app/
+
+## Run locally
 
 ```bash
 # CLI mode
