@@ -116,7 +116,7 @@ OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...   # uncomment if using Claude
 ```
 
-## Test it out directly in Stremlit
+## Test it out directly in Streamlit
 
 https://legal-contract-analyser-zanzaj87.streamlit.app/
 
