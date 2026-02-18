@@ -43,16 +43,22 @@ __start__
        │ end                  Tools available:
        ▼                      • parse_pdf
 ┌─────────────────┐           • parse_docx
-│ Clause Extractor│           • ocr_scanned_document
-└────────┬────────┘
-         ▼
-┌───────────────┐
-│ Risk Assessor │
-└────────┬──────┘
-         ▼
-┌────────────┐
-│ Summariser │ ──▶ complete ──▶ __end__
-└────────────┘
+│ Clause Extractor│──────┐    • ocr_scanned_document
+└────────┬────────┘      │
+         ▼               │
+┌───────────────┐        │
+│ Risk Assessor │────────┤
+└────────┬──────┘        │  on failure
+         ▼               │
+┌────────────┐           │
+│ Summariser │───────────┤
+└────────┬───┘           │
+         │               ▼
+         ▼         ┌───────────────┐
+      complete     │ error_handler │
+         │         └───────┬───────┘
+         ▼                 ▼
+             __end__
 ```
 
 **When to use:** The input could be a PDF, DOCX, or scanned image. The LLM decides which parsing tool to call and can retry with a different tool if the first attempt returns poor results.
