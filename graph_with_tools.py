@@ -51,7 +51,7 @@ def build_graph() -> StateGraph:
     WITH TOOL CALLING (ReAct loop):
         ┌──────────────────────┐
         │  parser_agent        │◄─────────┐
-        │  (LLM reasons,      │          │
+        │  (LLM reasons,       │          │
         │   emits tool_calls)  │          │ loop back with
         └──────┬───────────────┘          │ tool results
                │                          │

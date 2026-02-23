@@ -5,7 +5,8 @@ Usage: python main.py --contract path/to/contract.pdf
 
 import argparse
 import json
-from graph import compile_graph
+#from graph import compile_graph
+from graph_with_tools import compile_graph
 from models.schemas import ClauseExtractionResult, RiskAssessmentResult
 
 from dotenv import load_dotenv
@@ -90,7 +91,7 @@ def main():
         "--contract",
         type=str,
         required=True,
-        help="Path to the contract PDF file",
+        help="Path to the contract file (PDF, DOCX, or image)",
     )
     parser.add_argument(
         "--verbose",
@@ -107,7 +108,8 @@ def main():
 
     # Run the pipeline
     initial_state = {
-        "pdf_path": args.contract,
+        "file_path": args.contract,
+        "messages": [],
         "parsed_text": None,
         "document_metadata": None,
         "extraction_result": None,

@@ -126,7 +126,9 @@ Given a file path, determine the best extraction method:
 Look at the file extension to decide. If a PDF extraction returns very little text \
 relative to the page count, the PDF might be scanned — try OCR as a fallback.
 
-After extraction, confirm whether the document appears to be a legal contract."""
+IMPORTANT: Once you have successfully extracted text from the document, DO NOT call \
+any more tools. Instead, respond with a brief assessment of whether the document \
+appears to be a legal contract. Never call the same tool twice on the same file."""
 
 
 def parser_agent(state: ContractAnalysisState) -> dict:
@@ -137,23 +139,45 @@ def parser_agent(state: ContractAnalysisState) -> dict:
     This node returns an AIMessage with tool_calls — the ToolNode
     in the graph will execute the actual tool.
     """
-    pdf_path = state["pdf_path"]
-    file_ext = Path(pdf_path).suffix.lower()
+    file_path = state["file_path"]
+    file_ext = Path(file_path).suffix.lower()
 
     llm = get_llm(model="gpt-4o-mini", temperature=0.0)
     llm_with_tools = llm.bind_tools(PARSER_TOOLS)
 
-    response = llm_with_tools.invoke(
-        [
-            SystemMessage(content=MULTI_FORMAT_PARSER_PROMPT),
-            HumanMessage(
-                content=f"Please extract text from this file: {pdf_path}\n"
-                f"File extension: {file_ext}"
-            ),
-        ]
-    )
+    # Check if we already have messages (i.e. we're in a loop iteration)
+    existing_messages = state.get("messages", [])
 
-    # The response will contain tool_calls if the LLM wants to use a tool.
-    # The ToolNode in the graph will execute them and return results.
-    # We store the messages so the LLM can see the tool results on the next pass.
+    if existing_messages:
+        # We're looping back — the LLM needs to see its previous
+        # tool calls and the tool results to decide what to do next
+        response = llm_with_tools.invoke(existing_messages)
+    else:
+        # First invocation — send the initial prompt
+        response = llm_with_tools.invoke(
+            [
+                SystemMessage(content=MULTI_FORMAT_PARSER_PROMPT),
+                HumanMessage(
+                    content=f"Please extract text from this file: {file_path}\n"
+                    f"File extension: {file_ext}"
+                ),
+            ]
+        )
+
+    # If the LLM is NOT calling any more tools, it means parsing is done.
+    # Extract the parsed text from the tool results in messages.
+    if not response.tool_calls:
+        # Find the tool result message (contains the extracted text)
+        parsed_text = None
+        for msg in existing_messages:
+            if hasattr(msg, 'type') and msg.type == 'tool':
+                parsed_text = msg.content
+
+        return {
+            "messages": [response],
+            "parsed_text": parsed_text,
+            "current_step": "extract" if parsed_text else "error",
+            "error_message": None if parsed_text else "Failed to extract text from document.",
+        }
+
     return {"messages": [response]}

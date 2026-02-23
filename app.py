@@ -8,7 +8,8 @@ import tempfile
 import os
 from pathlib import Path
 
-from graph import compile_graph
+#from graph import compile_graph
+from graph_with_tools import compile_graph
 from models.schemas import ClauseExtractionResult, RiskAssessmentResult
 
 from dotenv import load_dotenv
@@ -23,11 +24,11 @@ st.set_page_config(
 
 st.title("📑 Legal Contract Analyser")
 st.markdown(
-    "Upload a contract PDF to extract clauses, assess risks, "
+    "Upload a contract (PDF, DOCX, or scanned image) to extract clauses, assess risks, "
     "and generate an executive summary using a **multi-agent AI pipeline**."
 )
 
-# Sidebar — architecture explanation (good for interview demos)
+# Sidebar — architecture explanation
 with st.sidebar:
     st.header("🏗️ Architecture")
     st.markdown(
@@ -49,56 +50,37 @@ with st.sidebar:
 
 # File upload
 uploaded_file = st.file_uploader(
-    "Upload a contract PDF",
-    type=["pdf"],
-    help="Supported: PDF files up to 50 pages",
+    "Upload a contract",
+    type=["pdf", "docx", "doc", "png", "jpg", "jpeg", "tiff"],
+    help="Supported: PDF, DOCX, and image files (PNG, JPG, TIFF)",
 )
 
 if uploaded_file is not None:
     # Save uploaded file to temp location
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+    file_ext = Path(uploaded_file.name).suffix
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
 
     st.success(f"Uploaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
 
     if st.button("🔍 Analyse Contract", type="primary", use_container_width=True):
-        # Progress tracking
-        progress = st.progress(0, text="Initialising pipeline...")
+        with st.spinner("Analysing contract... this may take 30-60 seconds"):
+            app = compile_graph()
 
-        # Compile graph
-        app = compile_graph()
+            initial_state = {
+                "file_path": tmp_path,
+                "messages": [],
+                "parsed_text": None,
+                "document_metadata": None,
+                "extraction_result": None,
+                "risk_result": None,
+                "executive_summary": None,
+                "current_step": "parse",
+                "error_message": None,
+            }
 
-        initial_state = {
-            "pdf_path": tmp_path,
-            "parsed_text": None,
-            "document_metadata": None,
-            "extraction_result": None,
-            "risk_result": None,
-            "executive_summary": None,
-            "current_step": "parse",
-            "error_message": None,
-        }
-
-        # Stream through the pipeline
-        step_labels = {
-            "parser": ("Parsing PDF...", 0.2),
-            "clause_extractor": ("Extracting clauses...", 0.4),
-            "risk_assessor": ("Assessing risks...", 0.7),
-            "summariser": ("Generating summary...", 0.9),
-        }
-
-        final_state = None
-        for step_output in app.stream(initial_state):
-            node_name = list(step_output.keys())[0]
-            if node_name in step_labels:
-                label, pct = step_labels[node_name]
-                progress.progress(pct, text=f"✓ {label}")
-            final_state = step_output.get(node_name, {})
-
-        # Get complete final state
-        final_state = app.invoke(initial_state)
-        progress.progress(1.0, text="✓ Analysis complete!")
+            final_state = app.invoke(initial_state)
 
         # Check for errors
         if final_state.get("current_step") == "error":

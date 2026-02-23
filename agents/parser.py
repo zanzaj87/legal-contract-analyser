@@ -17,7 +17,7 @@ def parser_agent(state: ContractAnalysisState) -> dict:
     Reads: pdf_path
     Writes: parsed_text, document_metadata, current_step
     """
-    pdf_path = state["pdf_path"]
+    pdf_path = state["file_path"]
 
     try:
         # Step 1: Extract text from PDF

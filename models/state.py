@@ -4,15 +4,20 @@ This TypedDict is the shared state that flows between all agents in the graph.
 Each agent reads what it needs and writes its outputs back to this state.
 """
 
-from typing import TypedDict, Optional, Literal
+from typing import TypedDict, Optional, Literal, Annotated
 from models.schemas import ClauseExtractionResult, RiskAssessmentResult
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
 
 
 class ContractAnalysisState(TypedDict):
     """Shared state for the contract analysis pipeline."""
 
     # -- Input --
-    pdf_path: str
+    file_path: str
+
+    # -- Messages (required for tool calling) --
+    messages: Annotated[list[AnyMessage], add_messages]
 
     # -- Parser Agent outputs --
     parsed_text: Optional[str]
