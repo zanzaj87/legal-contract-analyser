@@ -4,23 +4,55 @@ Run with: streamlit run app.py
 """
 
 import streamlit as st
-import tempfile
-import os
-from pathlib import Path
-
-#from graph import compile_graph
-from graph_with_tools import compile_graph
-from models.schemas import ClauseExtractionResult, RiskAssessmentResult
-
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-
 st.set_page_config(
     page_title="Legal Contract Analyser",
     page_icon="📑",
     layout="wide",
 )
+import tempfile
+import os
+from pathlib import Path
+
+# Force Streamlit secrets into env vars early
+for k in [
+    "OPENAI_API_KEY",
+    "LANGSMITH_TRACING", "LANGSMITH_ENDPOINT", "LANGSMITH_API_KEY", "LANGSMITH_PROJECT",
+    "LANGCHAIN_TRACING_V2", "LANGCHAIN_ENDPOINT", "LANGCHAIN_API_KEY", "LANGCHAIN_PROJECT",
+]:
+    if k in st.secrets:
+        os.environ[k] = str(st.secrets[k])
+
+# Compatibility: LangChain often reads these
+os.environ.setdefault("LANGCHAIN_TRACING_V2", os.environ.get("LANGSMITH_TRACING", "true"))
+os.environ.setdefault("LANGCHAIN_ENDPOINT", os.environ.get("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"))
+os.environ.setdefault("LANGCHAIN_API_KEY", os.environ.get("LANGSMITH_API_KEY", ""))
+os.environ.setdefault("LANGCHAIN_PROJECT", os.environ.get("LANGSMITH_PROJECT", "default"))
+
+# Local only: load .env but do NOT override cloud secrets
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=False)
+except Exception:
+    pass
+
+st.sidebar.write("Tracing:", os.getenv("LANGSMITH_TRACING"), os.getenv("LANGCHAIN_TRACING_V2"))
+st.sidebar.write("Endpoint:", os.getenv("LANGSMITH_ENDPOINT") or os.getenv("LANGCHAIN_ENDPOINT"))
+st.sidebar.write("Project:", os.getenv("LANGSMITH_PROJECT") or os.getenv("LANGCHAIN_PROJECT"))
+st.sidebar.write("LS key set:", bool(os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY")))
+
+#from graph import compile_graph
+from graph_with_tools import compile_graph
+from models.schemas import ClauseExtractionResult, RiskAssessmentResult
+
+# from dotenv import load_dotenv
+
+# load_dotenv(override=True)
+
+# st.set_page_config(
+#     page_title="Legal Contract Analyser",
+#     page_icon="📑",
+#     layout="wide",
+# )
 
 st.title("📑 Legal Contract Analyser")
 st.markdown(
