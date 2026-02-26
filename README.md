@@ -67,10 +67,10 @@ __start__
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
-| **Parser** | `gpt-4o-mini` | Extracts text from PDF, validates it's a contract |
-| **Clause Extractor** | `gpt-4o` | Identifies key legal clauses using structured output (Pydantic) |
-| **Risk Assessor** | `gpt-4o` | Evaluates each clause for risk level, flags concerns |
-| **Summariser** | `gpt-4o` | Produces an executive summary for non-technical stakeholders |
+| **Parser** | `gpt-5-mini` | Extracts text from PDF, validates it's a contract |
+| **Clause Extractor** | `gpt-5.2` | Identifies key legal clauses using structured output (Pydantic) |
+| **Risk Assessor** | `gpt-5.2` | Evaluates each clause for risk level, flags concerns |
+| **Summariser** | `gpt-5.2` | Produces an executive summary for non-technical stakeholders |
 
 ## Project Structure
 

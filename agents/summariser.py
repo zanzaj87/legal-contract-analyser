@@ -62,7 +62,7 @@ def summariser_agent(state: ContractAnalysisState) -> dict:
         }
 
     try:
-        llm = get_llm(model="gpt-4o", temperature=0.1)  # slight creativity for readable summary
+        llm = get_llm(model="gpt-5.2", temperature=0.1)  # slight creativity for readable summary
 
         context = _build_analysis_context(extraction, risk)
 

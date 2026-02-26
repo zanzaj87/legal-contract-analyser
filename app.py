@@ -51,7 +51,7 @@ with st.sidebar:
         """
         This tool uses a **multi-agent system** built with [LangGraph](https://langchain-ai.github.io/langgraph/):
 
-        1. **Parser Agent** — Extracts text from PDF, validates it's a contract
+        1. **Parser Agent** — Extracts text from PDF, DOCX or scanned image and validates it's a contract using LLM tool calling
         2. **Clause Extractor** — Identifies key legal clauses using structured LLM output
         3. **Risk Assessor** — Evaluates each clause for legal risk
         4. **Summariser** — Produces an executive summary
@@ -61,7 +61,7 @@ with st.sidebar:
         """
     )
     st.divider()
-    st.markdown("**Tech Stack:** LangGraph · GPT-4o · PyMuPDF · Pydantic · Streamlit")
+    st.markdown("**Tech Stack:** LangGraph · GPT-5.2 · GPT-5-mini · PyMuPDF · Pydantic · Streamlit")
 
 
 # File upload
@@ -81,7 +81,7 @@ if uploaded_file is not None:
     st.success(f"Uploaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
 
     if st.button("🔍 Analyse Contract", type="primary", use_container_width=True):
-        with st.spinner("Analysing contract... this may take 30-60 seconds"):
+        with st.spinner("Analysing contract... this may take up to 5 minutes depending on the size of the contract"):
             app = compile_graph()
 
             initial_state = {

@@ -20,17 +20,24 @@ from agents.risk_assessor import risk_assessor_agent
 from agents.summariser import summariser_agent
 
 
-def route_after_step(state: ContractAnalysisState) -> str:
-    """Route to the next agent based on current_step."""
-    step = state.get("current_step", "error")
-    routing = {
-        "extract": "clause_extractor",
-        "assess_risk": "risk_assessor",
-        "summarise": "summariser",
-        "complete": "complete",
-        "error": "error_handler",
-    }
-    return routing.get(step, "error_handler")
+# def route_after_step(state: ContractAnalysisState) -> str:
+#     """Route to the next agent based on current_step."""
+#     step = state.get("current_step", "error")
+#     routing = {
+#         "extract": "clause_extractor",
+#         "assess_risk": "risk_assessor",
+#         "summarise": "summariser",
+#         "complete": "complete",
+#         "error": "error_handler",
+#     }
+#     return routing.get(step, "error_handler")
+
+def route_or_error(success_node: str):
+    def router(state: ContractAnalysisState) -> str:
+        if state.get("current_step") == "error":
+            return "error_handler"
+        return success_node
+    return router
 
 
 def error_handler(state: ContractAnalysisState) -> dict:
@@ -108,7 +115,7 @@ def build_graph() -> StateGraph:
     # -- Rest of pipeline (same as before) --
     graph.add_conditional_edges(
         "clause_extractor",
-        route_after_step,
+        route_or_error("risk_assessor"),
         {
             "risk_assessor": "risk_assessor",
             "error_handler": "error_handler",
@@ -117,7 +124,7 @@ def build_graph() -> StateGraph:
 
     graph.add_conditional_edges(
         "risk_assessor",
-        route_after_step,
+        route_or_error("summariser"),
         {
             "summariser": "summariser",
             "error_handler": "error_handler",
@@ -126,7 +133,7 @@ def build_graph() -> StateGraph:
 
     graph.add_conditional_edges(
         "summariser",
-        route_after_step,
+        route_or_error("complete"),
         {
             "complete": END,
             "error_handler": "error_handler",

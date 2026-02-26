@@ -48,7 +48,7 @@ def risk_assessor_agent(state: ContractAnalysisState) -> dict:
         }
 
     try:
-        llm = get_llm(model="gpt-4o", temperature=0.0)
+        llm = get_llm(model="gpt-5.2", temperature=0.0)
         structured_llm = llm.with_structured_output(RiskAssessmentResult)
 
         clauses_text = _format_clauses_for_assessment(extraction)

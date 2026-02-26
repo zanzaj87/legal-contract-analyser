@@ -26,7 +26,7 @@ def clause_extractor_agent(state: ContractAnalysisState) -> dict:
         }
 
     try:
-        llm = get_llm(model="gpt-4o", temperature=0.0)
+        llm = get_llm(model="gpt-5.2", temperature=0.0)
 
         # Use structured output — this forces the LLM to return a valid Pydantic object
         structured_llm = llm.with_structured_output(ClauseExtractionResult)
@@ -34,7 +34,7 @@ def clause_extractor_agent(state: ContractAnalysisState) -> dict:
         # For long contracts, we might need to chunk — but for demo, send full text
         # In production, you'd implement a chunking strategy here
         # e.g. section-aware chunking, or process page-by-page and merge
-        max_chars = 60_000  # ~15k tokens, safe for gpt-4o's context
+        max_chars = 1_500_000  # ~375k tokens, safe for gpt-5.2's context
         text_to_analyse = parsed_text[:max_chars]
 
         if len(parsed_text) > max_chars:
