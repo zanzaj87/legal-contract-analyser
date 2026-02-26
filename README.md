@@ -144,7 +144,7 @@ Place PDF contracts in a `sample_contracts/` directory
 
 - **LangGraph** — Agent orchestration and graph-based workflow
 - **LangChain** — LLM integration and tool calling
-- **GPT-4o / GPT-4o-mini** — Language models (swappable via `utils/llm.py`)
+- **GPT-5.2 / GPT-5-mini** — Language models (swappable via `utils/llm.py`)
 - **PyMuPDF** — PDF text extraction
 - **Pydantic** — Structured LLM output schemas
 - **Streamlit** — Web UI
