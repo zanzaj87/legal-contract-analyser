@@ -1,0 +1,10 @@
+# RAG pipeline dependencies (add to your existing requirements.txt)
+# ─── Vector Store ───
+chromadb>=0.5.0
+openai>=1.0.0
+
+# ─── Dataset Loading ───
+datasets>=2.14.0
+
+# ─── Tokenisation (used by OpenAI embeddings) ───
+tiktoken>=0.5.0

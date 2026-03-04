@@ -1,6 +1,7 @@
 """
-Risk Assessor Agent.
-Evaluates extracted clauses for legal risk and identifies missing protections.
+Risk Assessor Agent — RAG-Enhanced.
+Evaluates extracted clauses for legal risk by comparing against
+benchmark clauses from the CUAD dataset (SEC EDGAR filings).
 """
 
 from models.state import ContractAnalysisState
@@ -9,6 +10,27 @@ from utils.llm import get_llm
 from agents.prompts import RISK_ASSESSOR_SYSTEM_PROMPT
 from langchain_core.messages import SystemMessage, HumanMessage
 
+
+# ─── RAG Retriever (lazy-loaded) ─────────────────────────────────────────────
+
+_retriever = None
+
+
+def _get_retriever():
+    """Lazy-load the ClauseRetriever so the app still works without the vector store."""
+    global _retriever
+    if _retriever is None:
+        try:
+            from rag.vectorstore import ClauseRetriever
+            _retriever = ClauseRetriever()
+        except (FileNotFoundError, ImportError) as e:
+            print(f"[RAG] Vector store not available: {e}")
+            print("[RAG] Risk assessment will proceed without benchmark comparison.")
+            _retriever = False  # Sentinel: tried and failed, don't retry
+    return _retriever if _retriever else None
+
+
+# ─── Formatting ──────────────────────────────────────────────────────────────
 
 def _format_clauses_for_assessment(extraction: ClauseExtractionResult) -> str:
     """Format extracted clauses into a readable string for the Risk Assessor."""
@@ -32,9 +54,60 @@ def _format_clauses_for_assessment(extraction: ClauseExtractionResult) -> str:
     return "\n".join(parts)
 
 
+def _build_rag_context(extraction: ClauseExtractionResult) -> str:
+    """
+    Query the vector store for benchmark clauses matching each extracted clause.
+    Uses pure semantic search — no category mapping needed.
+    """
+    retriever = _get_retriever()
+    if not retriever:
+        return ""
+
+    context_parts = [
+        "\n\n" + "=" * 60,
+        "BENCHMARK COMPARISON DATA (from CUAD — 510 SEC EDGAR filings)",
+        "Use these real-world examples to calibrate your risk assessment.",
+        "=" * 60,
+    ]
+
+    for clause in extraction.clauses:
+        try:
+            # Pure semantic search — let the embeddings find the best matches
+            similar = retriever.find_similar_clauses(
+                clause_text=clause.text,
+                category=None,  # No filter — search across all categories
+                n_results=2,
+            )
+
+            context_parts.append(f"\n[{clause.clause_type.upper()} — {clause.title}]")
+            context_parts.append(f"Benchmarks found (top 3 by similarity):\n")
+
+            for i, bench in enumerate(similar, 1):
+                text = bench["clause_text"]
+                if len(text) > 300:
+                    text = text[:300] + "... [truncated]"
+                context_parts.append(
+                    f"  Benchmark {i} (distance: {bench['distance']:.4f}):"
+                    f"\n    CUAD Category: {bench['category']}"
+                    f"\n    Contract Type: {bench['contract_type']}"
+                    f"\n    Text: {text}\n"
+                )
+
+        except Exception as e:
+            print(f"[RAG] Error retrieving benchmarks for {clause.clause_type}: {e}")
+
+    return "\n".join(context_parts)
+
+
+# ─── Agent ───────────────────────────────────────────────────────────────────
+
 def risk_assessor_agent(state: ContractAnalysisState) -> dict:
     """
     Node: Assess risk for each extracted clause.
+
+    RAG-enhanced: queries the CUAD vector store for similar benchmark
+    clauses from SEC EDGAR filings, then passes them to the LLM alongside
+    the extracted clauses for grounded comparison.
 
     Reads: extraction_result
     Writes: risk_result, current_step
@@ -51,15 +124,31 @@ def risk_assessor_agent(state: ContractAnalysisState) -> dict:
         llm = get_llm(model="gpt-5.2", temperature=0.0)
         structured_llm = llm.with_structured_output(RiskAssessmentResult)
 
+        # Format the extracted clauses
         clauses_text = _format_clauses_for_assessment(extraction)
+
+        # Build RAG benchmark context (empty string if store not available)
+        rag_context = _build_rag_context(extraction)
+
+        # Build the human message with optional RAG context
+        human_message = (
+            f"Assess the risk of the following contract clauses:\n\n"
+            f"{clauses_text}"
+        )
+
+        if rag_context:
+            human_message += (
+                f"\n\n{rag_context}"
+                f"\n\nIMPORTANT: Compare each clause against the benchmark examples above. "
+                f"Identify what is standard practice, what deviates from typical terms, "
+                f"and what protections are missing compared to similar contracts filed "
+                f"with the SEC."
+            )
 
         result: RiskAssessmentResult = structured_llm.invoke(
             [
                 SystemMessage(content=RISK_ASSESSOR_SYSTEM_PROMPT),
-                HumanMessage(
-                    content=f"Assess the risk of the following contract clauses:\n\n"
-                    f"{clauses_text}"
-                ),
+                HumanMessage(content=human_message),
             ]
         )
 

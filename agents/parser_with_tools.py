@@ -57,6 +57,17 @@ def parser_agent(state: ContractAnalysisState) -> dict:
         for msg in existing_messages:
             if hasattr(msg, 'type') and msg.type == 'tool':
                 parsed_text = msg.content
+        
+        # Parse the LLM's structured assessment
+        is_contract = "is_contract: true" in response.content.lower()
+
+        if not is_contract:
+            return {
+                "messages": [response],
+                "parsed_text": parsed_text,
+                "current_step": "error",
+                "error_message": response.content,
+            }
 
         return {
             "messages": [response],

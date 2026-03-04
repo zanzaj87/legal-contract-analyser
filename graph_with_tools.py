@@ -20,17 +20,19 @@ from agents.risk_assessor import risk_assessor_agent
 from agents.summariser import summariser_agent
 
 
-# def route_after_step(state: ContractAnalysisState) -> str:
-#     """Route to the next agent based on current_step."""
-#     step = state.get("current_step", "error")
-#     routing = {
-#         "extract": "clause_extractor",
-#         "assess_risk": "risk_assessor",
-#         "summarise": "summariser",
-#         "complete": "complete",
-#         "error": "error_handler",
-#     }
-#     return routing.get(step, "error_handler")
+def parser_routing(state: ContractAnalysisState) -> str:
+    """Route after parser agent: check for tool calls OR error."""
+    # If the parser set an error (e.g. not a contract), go to error handler
+    if state.get("current_step") == "error":
+        return "error_handler"
+    
+    # Otherwise, check for tool calls (standard ReAct routing)
+    last_message = state["messages"][-1]
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        return "tools"
+    
+    return "clause_extractor"
+
 
 def route_or_error(success_node: str):
     def router(state: ContractAnalysisState) -> str:
@@ -55,7 +57,8 @@ def build_graph() -> StateGraph:
     SIMPLE (direct calls):
         parser ──→ clause_extractor ──→ risk_assessor ──→ summariser ──→ END
 
-    WITH TOOL CALLING (ReAct loop):
+    WITH TOOL CALLING (ReAct loop + contract validation + RAG):
+
         ┌──────────────────────┐
         │  parser_agent        │◄─────────┐
         │  (LLM reasons,       │          │
@@ -64,22 +67,41 @@ def build_graph() -> StateGraph:
                │                          │
                ▼                          │
         ┌──────────────────────┐          │
-        │  tools_condition     │          │
-        │  (has tool calls?)   │          │
-        └──┬───────────┬───────┘          │
-           │           │                  │
-      no tools     has tools              │
-           │           │                  │
-           ▼           ▼                  │
-     clause_       ┌───────────────┐      │
-     extractor     │  parser_tools │      │
-                   │  (executes    │──────┘
-                   │   the tool)   │
-                   └───────────────┘
+        │  parser_routing      │          │
+        │  (3-way decision)    │          │
+        └──┬───────┬───────┬───┘          │
+           │       │       │              │
+       not a    no tools  has tools       │
+       contract    │       │              │
+           │       ▼       ▼              │
+           │  clause_  ┌───────────────┐  │
+           │  extractor│  parser_tools │──┘
+           │       │   │  (executes    │
+           │       │   │   the tool)   │
+           │       │   └───────────────┘
+           │       ▼
+           │  risk_assessor ◄─── ChromaDB (CUAD benchmarks)
+           │       │             11K clauses from 510 SEC filings
+           │       ▼             semantic search per clause
+           │  summariser
+           │       │
+           │       ▼
+           │    complete ──→ END
+           │
+           ▼
+        ┌──────────────────────┐
+        │  error_handler       │──→ END
+        │  "Not a contract"    │
+        └──────────────────────┘
 
     This loop means the parser can:
     1. Try parse_pdf → get little text → try ocr_scanned_document
     2. Extract text → validate it's a contract → proceed
+    3. Detect non-contract documents → short-circuit to error handler
+
+    The risk assessor queries a ChromaDB vector store containing 11,129
+    benchmark clauses from the CUAD dataset (SEC EDGAR filings) to ground
+    its assessment in real-world contract standards.
     """
 
     graph = StateGraph(ContractAnalysisState)
@@ -99,12 +121,11 @@ def build_graph() -> StateGraph:
     # After the parser agent runs, check if it emitted tool calls
     graph.add_conditional_edges(
         "parser_agent",
-        tools_condition,  # built-in: checks for tool_calls in the AIMessage
+        parser_routing,
         {
-            # If the LLM wants to call a tool → execute it
             "tools": "parser_tools",
-            # If no tool calls → LLM is done reasoning, move to extraction
-            END: "clause_extractor",
+            "clause_extractor": "clause_extractor",
+            "error_handler": "error_handler",
         },
     )
 
