@@ -34,7 +34,6 @@ try:
 except Exception:
     pass
 
-#from graph import compile_graph
 from graph_with_tools import compile_graph
 from models.schemas import ClauseExtractionResult, RiskAssessmentResult
 
@@ -53,15 +52,18 @@ with st.sidebar:
 
         1. **Parser Agent** — Extracts text from PDF, DOCX or scanned image and validates it's a contract using LLM tool calling
         2. **Clause Extractor** — Identifies key legal clauses using structured LLM output
-        3. **Risk Assessor** — Evaluates each clause for legal risk
-        4. **Summariser** — Produces an executive summary
+        3. **Risk Assessor** — Evaluates each clause against **11K benchmark clauses** from SEC filings (RAG + ChromaDB)
+        4. **Missing Clause Checker** — Identifies expected but absent clauses using CUAD benchmark data
+        5. **Summariser** — Merges both parallel outputs into an executive summary
+        6. **Reviewer** — Checks consistency across all outputs, can request targeted revisions
 
-        Each agent is a **node** in a directed graph with **conditional routing**.
-        If any step fails, the pipeline routes to an error handler.
+        **Key patterns:** ReAct tool calling · RAG retrieval · Parallel fan-out/fan-in · Reviewer feedback loop
+
+        Agents 3 & 4 run **in parallel** after extraction. The reviewer can send the summary or risk assessment back for revision (max 1 loop).
         """
     )
     st.divider()
-    st.markdown("**Tech Stack:** LangGraph · GPT-5.2 · GPT-5-mini · PyMuPDF · Pydantic · Streamlit")
+    st.markdown("**Tech Stack:** LangGraph · GPT-5.2 · GPT-5-mini · ChromaDB · CUAD Dataset · LangSmith · Streamlit")
 
 
 # File upload
@@ -82,6 +84,10 @@ if uploaded_file is not None:
 
     if st.button("🔍 Analyse Contract", type="primary", use_container_width=True):
         with st.spinner("Analysing contract... this may take up to 5 minutes depending on the size of the contract"):
+            # Pre-load RAG retriever before running parallel agents
+            from rag.shared import get_shared_retriever
+            get_shared_retriever()
+            
             app = compile_graph()
 
             initial_state = {
@@ -91,7 +97,10 @@ if uploaded_file is not None:
                 "document_metadata": None,
                 "extraction_result": None,
                 "risk_result": None,
+                "missing_clause_result": None,
                 "executive_summary": None,
+                "review_result": None,
+                "revision_count": 0,
                 "current_step": "parse",
                 "error_message": None,
             }

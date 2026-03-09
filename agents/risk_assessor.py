@@ -9,25 +9,7 @@ from models.schemas import RiskAssessmentResult, ClauseExtractionResult
 from utils.llm import get_llm
 from agents.prompts import RISK_ASSESSOR_SYSTEM_PROMPT
 from langchain_core.messages import SystemMessage, HumanMessage
-
-
-# ─── RAG Retriever (lazy-loaded) ─────────────────────────────────────────────
-
-_retriever = None
-
-
-def _get_retriever():
-    """Lazy-load the ClauseRetriever so the app still works without the vector store."""
-    global _retriever
-    if _retriever is None:
-        try:
-            from rag.vectorstore import ClauseRetriever
-            _retriever = ClauseRetriever()
-        except (FileNotFoundError, ImportError) as e:
-            print(f"[RAG] Vector store not available: {e}")
-            print("[RAG] Risk assessment will proceed without benchmark comparison.")
-            _retriever = False  # Sentinel: tried and failed, don't retry
-    return _retriever if _retriever else None
+from rag.shared import get_shared_retriever
 
 
 # ─── Formatting ──────────────────────────────────────────────────────────────
@@ -59,7 +41,9 @@ def _build_rag_context(extraction: ClauseExtractionResult) -> str:
     Query the vector store for benchmark clauses matching each extracted clause.
     Uses pure semantic search — no category mapping needed.
     """
-    retriever = _get_retriever()
+    retriever = get_shared_retriever()
+    print(f"[RAG DEBUG] Retriever returned: {retriever is not None}")
+    print(f"[RAG DEBUG] Clauses to process: {len(extraction.clauses)}")
     if not retriever:
         return ""
 

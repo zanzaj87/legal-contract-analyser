@@ -53,6 +53,10 @@ class ClauseRiskAssessment(BaseModel):
     risk_reasoning: str = Field(
         description="Explanation of why this risk level was assigned"
     )
+    benchmark_comparison: str = Field(
+        default="",
+        description="How this clause compares to benchmark clauses from SEC EDGAR filings"
+    )
     key_concerns: List[str] = Field(
         default_factory=list,
         description="Specific concerns or red flags identified",
@@ -75,4 +79,79 @@ class RiskAssessmentResult(BaseModel):
     )
     summary_of_concerns: str = Field(
         description="Brief narrative of the main risk themes"
+    )
+
+
+# ---------- Missing Clause Analysis Models ----------
+
+class MissingClause(BaseModel):
+    """A single clause that is expected but missing from the contract."""
+
+    clause_type: str = Field(
+        description="Type of the missing clause, e.g. 'Force Majeure', 'Data Protection'"
+    )
+    importance: Literal["critical", "recommended", "optional"] = Field(
+        description="How important this clause is for this contract type"
+    )
+    risk_if_absent: str = Field(
+        description="What risks arise from this clause being missing"
+    )
+    typical_coverage: str = Field(
+        description="What this clause typically covers in similar contracts"
+    )
+    recommendation: str = Field(
+        description="Specific action to address the gap"
+    )
+
+
+class MissingClauseResult(BaseModel):
+    """Structured output from the Missing Clause Checker agent."""
+
+    contract_type: str = Field(
+        description="The type of contract being analysed"
+    )
+    clauses_found: List[str] = Field(
+        default_factory=list,
+        description="List of clause types that were found in the contract"
+    )
+    missing_clauses: List[MissingClause] = Field(
+        default_factory=list,
+        description="Clauses expected for this contract type but not found"
+    )
+    completeness_score: Literal["low", "medium", "high"] = Field(
+        description="Overall completeness: low = many gaps, high = comprehensive"
+    )
+    summary: str = Field(
+        description="Brief narrative of the main gaps and their implications"
+    )
+
+
+# ---------- Reviewer Models ----------
+
+class ReviewResult(BaseModel):
+    """Structured output from the Reviewer agent."""
+
+    decision: Literal["approve", "revise_summary", "revise_risk"] = Field(
+        description=(
+            "approve: analysis is consistent and complete, proceed to final output. "
+            "revise_summary: the summary has issues (missed key findings, misranked risks, "
+            "inconsistent with underlying data) — send back to summariser. "
+            "revise_risk: a risk assessment is incorrect or inconsistent — send back to "
+            "risk assessor for re-evaluation, then re-summarise."
+        )
+    )
+    quality_score: Literal["low", "medium", "high"] = Field(
+        description="Overall quality of the analysis: low = major issues, high = ready to deliver"
+    )
+    issues_found: List[str] = Field(
+        default_factory=list,
+        description="Specific issues identified across the analysis outputs"
+    )
+    revision_instructions: str = Field(
+        default="",
+        description=(
+            "If decision is revise_summary or revise_risk, provide specific instructions "
+            "for what needs to change. Be precise — reference specific clauses, risk levels, "
+            "or summary sections that need correction."
+        )
     )

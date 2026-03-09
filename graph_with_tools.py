@@ -1,23 +1,25 @@
 """
-LangGraph pipeline — Multi-Format Version with Tool Calling.
+LangGraph pipeline — Multi-Format Version with Tool Calling,
+Parallel Agents, and Reviewer Feedback Loop.
 
-This version shows how the graph changes when the parser agent
-uses tool calling instead of direct function calls.
-
-Key difference: there's now a LOOP in the parser section:
-  parser_agent → (tool call?) → parser_tools → parser_agent → (done?) → clause_extractor
-
-This is the ReAct pattern: Reason → Act → Observe → Reason again.
+Architecture:
+  parser_agent → clause_extractor → fan-out → risk_assessor (+ RAG)        → fan-in
+                                             → missing_clause_checker (+ RAG)
+  → summariser → reviewer → approve → END
+                           → revise_summary → summariser → reviewer (forced approve) → END
+                           → revise_risk → risk_assessor → summariser → reviewer (forced approve) → END
 """
 
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt import ToolNode
 
 from models.state import ContractAnalysisState
 from agents.parser_with_tools import parser_agent, PARSER_TOOLS
 from agents.clause_extractor import clause_extractor_agent
 from agents.risk_assessor import risk_assessor_agent
+from agents.missing_clause_checker import missing_clause_checker_agent
 from agents.summariser import summariser_agent
+from agents.reviewer import reviewer_agent
 
 
 def parser_routing(state: ContractAnalysisState) -> str:
@@ -42,6 +44,42 @@ def route_or_error(success_node: str):
     return router
 
 
+def fan_out_after_extraction(state: ContractAnalysisState) -> list[str]:
+    """
+    After clause extraction, fan out to both analysis agents in parallel.
+    Returns a list of node names to execute simultaneously.
+    """
+    if state.get("current_step") == "error":
+        return ["error_handler"]
+    return ["risk_assessor", "missing_clause_checker"]
+
+
+def reviewer_routing(state: ContractAnalysisState) -> str:
+    """
+    Route after reviewer: approve, revise summary, or revise risk assessment.
+
+    The reviewer writes its decision to review_result.decision:
+      - "approve" → END
+      - "revise_summary" → summariser (rerun summary only)
+      - "revise_risk" → risk_assessor (rerun risk, then summary)
+    """
+    if state.get("current_step") == "error":
+        return "error_handler"
+
+    review = state.get("review_result")
+    if not review:
+        return "complete"  # No review result = approve by default
+
+    if review.decision == "revise_summary":
+        print(f"[GRAPH] Reviewer requested summary revision")
+        return "summariser"
+    elif review.decision == "revise_risk":
+        print(f"[GRAPH] Reviewer requested risk assessment revision")
+        return "risk_assessor"
+    else:
+        return "complete"
+
+
 def error_handler(state: ContractAnalysisState) -> dict:
     error_msg = state.get("error_message", "Unknown error occurred.")
     print(f"[ERROR] Pipeline failed: {error_msg}")
@@ -50,14 +88,10 @@ def error_handler(state: ContractAnalysisState) -> dict:
 
 def build_graph() -> StateGraph:
     """
-    Construct the LangGraph pipeline with tool calling.
+    Construct the LangGraph pipeline with tool calling, parallel agents,
+    and reviewer feedback loop.
 
-    The key structural difference from the simple version:
-
-    SIMPLE (direct calls):
-        parser ──→ clause_extractor ──→ risk_assessor ──→ summariser ──→ END
-
-    WITH TOOL CALLING (ReAct loop + contract validation + RAG):
+    FULL ARCHITECTURE:
 
         ┌──────────────────────┐
         │  parser_agent        │◄─────────┐
@@ -79,29 +113,38 @@ def build_graph() -> StateGraph:
            │       │   │  (executes    │
            │       │   │   the tool)   │
            │       │   └───────────────┘
-           │       ▼
-           │  risk_assessor ◄─── ChromaDB (CUAD benchmarks)
-           │       │             11K clauses from 510 SEC filings
-           │       ▼             semantic search per clause
-           │  summariser
            │       │
-           │       ▼
-           │    complete ──→ END
+           │       ▼ (fan-out: parallel execution)
+           │       ┌─────────────────────────────────┐
+           │       │                                 │
+           │       ▼                                 ▼
+           │  risk_assessor ◄── ChromaDB    missing_clause_checker ◄── ChromaDB
+           │  (assess existing    (CUAD)    (identify gaps)              (CUAD)
+           │   clauses)
+           │       │                                 │
+           │       └────────────┬────────────────────┘
+           │                    ▼ (fan-in: both complete)
+           │               summariser ◄──────────────────────┐
+           │                    │                            │
+           │                    ▼                            │
+           │               reviewer                          │
+           │                    │                            │
+           │            ┌───────┼───────┐                    │
+           │            │       │       │                    │
+           │         approve  revise  revise                 │
+           │            │     summary  risk                  │
+           │            ▼       │       │                    │
+           │          END       │       ▼                    │
+           │                    │  risk_assessor             │
+           │                    │       │                    │
+           │                    └───────┴────────────────────┘
+           │                    (max 1 revision, then forced approve)
            │
            ▼
         ┌──────────────────────┐
         │  error_handler       │──→ END
         │  "Not a contract"    │
         └──────────────────────┘
-
-    This loop means the parser can:
-    1. Try parse_pdf → get little text → try ocr_scanned_document
-    2. Extract text → validate it's a contract → proceed
-    3. Detect non-contract documents → short-circuit to error handler
-
-    The risk assessor queries a ChromaDB vector store containing 11,129
-    benchmark clauses from the CUAD dataset (SEC EDGAR filings) to ground
-    its assessment in real-world contract standards.
     """
 
     graph = StateGraph(ContractAnalysisState)
@@ -111,14 +154,15 @@ def build_graph() -> StateGraph:
     graph.add_node("parser_tools", ToolNode(tools=PARSER_TOOLS))
     graph.add_node("clause_extractor", clause_extractor_agent)
     graph.add_node("risk_assessor", risk_assessor_agent)
+    graph.add_node("missing_clause_checker", missing_clause_checker_agent)
     graph.add_node("summariser", summariser_agent)
+    graph.add_node("reviewer", reviewer_agent)
     graph.add_node("error_handler", error_handler)
 
     # -- Entry point --
     graph.set_entry_point("parser_agent")
 
-    # -- Parser agent: ReAct loop --
-    # After the parser agent runs, check if it emitted tool calls
+    # -- Parser agent: ReAct loop with contract validation --
     graph.add_conditional_edges(
         "parser_agent",
         parser_routing,
@@ -133,30 +177,26 @@ def build_graph() -> StateGraph:
     # so the LLM can see the results and decide what to do next
     graph.add_edge("parser_tools", "parser_agent")
 
-    # -- Rest of pipeline (same as before) --
-    graph.add_conditional_edges(
-        "clause_extractor",
-        route_or_error("risk_assessor"),
-        {
-            "risk_assessor": "risk_assessor",
-            "error_handler": "error_handler",
-        },
-    )
 
-    graph.add_conditional_edges(
-        "risk_assessor",
-        route_or_error("summariser"),
-        {
-            "summariser": "summariser",
-            "error_handler": "error_handler",
-        },
-    )
+    # -- Fan-out: clause_extractor → both agents in parallel --
+    graph.add_edge("clause_extractor", "risk_assessor")
+    graph.add_edge("clause_extractor", "missing_clause_checker")
 
+    # -- Fan-in: both parallel agents → summariser --
+    graph.add_edge("risk_assessor", "summariser")
+    graph.add_edge("missing_clause_checker", "summariser")
+
+    # -- Summariser → Reviewer --
+    graph.add_edge("summariser", "reviewer")
+
+    # -- Reviewer: 3-way routing --
     graph.add_conditional_edges(
-        "summariser",
-        route_or_error("complete"),
+        "reviewer",
+        reviewer_routing,
         {
             "complete": END,
+            "summariser": "summariser",         # revise summary only
+            "risk_assessor": "risk_assessor",   # revise risk → then summariser
             "error_handler": "error_handler",
         },
     )
