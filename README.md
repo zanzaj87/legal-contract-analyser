@@ -1,6 +1,6 @@
 # Legal Contract Analyser — Multi-Agent System
 
-A multi-agent system built with **LangGraph** that analyses legal contracts by extracting clauses, assessing risks against real-world benchmarks, identifying missing protections, and producing executive summaries — with an automated quality review loop.
+A multi-agent system built with **LangGraph** that analyses legal contracts by extracting clauses, assessing risks against real-world benchmarks, identifying missing protections, and producing executive summaries with an automated quality review loop.
 
 Built as a portfolio demonstration of production-grade multi-agent architectures applied to the legal domain.
 
@@ -14,7 +14,7 @@ The system has evolved through three versions, each demonstrating progressively 
 
 ### V1: Sequential Pipeline (`graph.py`)
 
-Each agent is called deterministically in a fixed order. The parser calls `parse_pdf()` directly — no LLM decision-making.
+Each agent is called deterministically in a fixed order. The parser calls `parse_pdf()` directly, no LLM decision-making.
 
 ```
 parser ──→ clause_extractor ──→ risk_assessor ──→ summariser ──→ END
@@ -28,7 +28,7 @@ The parser agent uses **LLM tool calling** (ReAct pattern) to dynamically select
 
 **When to use:** Input could be PDF, DOCX, or scanned image. The LLM decides which parsing tool to call.
 
-### V3: Full Production Pipeline (`graph_with_tools.py`) — Current
+### V3: Full Production Pipeline (`graph_with_tools.py`) - Current
 
 The complete architecture with five key patterns:
 
@@ -101,7 +101,7 @@ The complete architecture with five key patterns:
 
 ### RAG-Enhanced Risk Assessment
 
-The risk assessor queries a **ChromaDB** vector store containing **11,129 benchmark clauses** from the [CUAD dataset](https://www.atticusprojectai.org/cuad) — 510 real commercial contracts filed with the SEC. For each extracted clause, it retrieves semantically similar benchmarks and compares the uploaded contract against real-world market practice.
+The risk assessor queries a **ChromaDB** vector store containing **11,129 benchmark clauses** from the [CUAD dataset](https://www.atticusprojectai.org/cuad) - 510 real commercial contracts filed with the SEC. For each extracted clause, it retrieves semantically similar benchmarks and compares the uploaded contract against real-world market practice.
 
 ```
 Uploaded clause: "Liability capped at 12 months' fees..."
@@ -219,15 +219,15 @@ This downloads the [CUAD v1 clause classification dataset](https://huggingface.c
 
 ## Tech Stack
 
-- **LangGraph** — Agent orchestration, parallel execution, conditional routing
-- **LangChain** — LLM integration, tool calling, structured output
-- **ChromaDB** — Vector store for RAG benchmark clauses
-- **OpenAI** — GPT-5.2 / GPT-5-mini (models), text-embedding-3-small (embeddings)
-- **CUAD Dataset** — 510 SEC EDGAR contracts, 41 clause categories (CC BY 4.0)
-- **LangSmith** — Observability and tracing (including RAG retrieval spans)
-- **PyMuPDF** — PDF text extraction
-- **Pydantic** — Structured LLM output schemas
-- **Streamlit** — Web UI
+- **LangGraph** - Agent orchestration, parallel execution, conditional routing
+- **LangChain** - LLM integration, tool calling, structured output
+- **ChromaDB** - Vector store for RAG benchmark clauses
+- **OpenAI** - GPT-5.2 / GPT-5-mini (models), text-embedding-3-small (embeddings)
+- **CUAD Dataset** - 510 SEC EDGAR contracts, 41 clause categories (CC BY 4.0)
+- **LangSmith** - Observability and tracing (including RAG retrieval spans)
+- **PyMuPDF** - PDF text extraction
+- **Pydantic** - Structured LLM output schemas
+- **Streamlit** - Web UI
 
 ## Observability
 
