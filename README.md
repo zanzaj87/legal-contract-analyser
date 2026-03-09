@@ -32,11 +32,11 @@ The parser agent uses **LLM tool calling** (ReAct pattern) to dynamically select
 
 The complete architecture with five key patterns:
 
-1. **ReAct tool calling** — Parser agent dynamically selects parsing tools
-2. **Contract validation** — Early termination for non-contract documents
-3. **RAG-enhanced assessment** — Risk assessor queries 11K benchmark clauses from SEC filings
-4. **Parallel fan-out/fan-in** — Risk assessor and missing clause checker run simultaneously
-5. **Reviewer feedback loop** — Automated quality check with targeted revision
+1. **ReAct tool calling**: Parser agent dynamically selects parsing tools
+2. **Contract validation**: Early termination for non-contract documents
+3. **RAG-enhanced assessment**: Risk assessor queries 11K benchmark clauses from SEC filings
+4. **Parallel fan-out/fan-in**: Risk assessor and missing clause checker run simultaneously
+5. **Reviewer feedback loop**: Automated quality check with targeted revision
 
 ```
     ┌──────────────────────┐
@@ -67,10 +67,10 @@ The complete architecture with five key patterns:
        │       └────────────┬────────────────────┘
        │                    ▼ (fan-in)
        │               summariser ◄──────────────────────┐
-       │                    │                             │
-       │                    ▼                             │
+       │                    │                            │
+       │                    ▼                            │
        │               reviewer                          │
-       │                    │                             │
+       │                    │                            │
        │            ┌───────┼───────┐                    │
        │         approve  revise  revise                 │
        │            │     summary  risk                  │
@@ -115,8 +115,8 @@ LLM: "This cap is consistent with 3/3 benchmark clauses from similar contracts"
 ### Parallel Agent Execution
 
 After clause extraction, two analysis agents run **simultaneously**:
-- **Risk Assessor** — evaluates existing clauses (with RAG benchmarks)
-- **Missing Clause Checker** — identifies gaps (using CUAD category statistics)
+- **Risk Assessor**: evaluates existing clauses (with RAG benchmarks)
+- **Missing Clause Checker**: identifies gaps (using CUAD category statistics)
 
 LangGraph's fan-out/fan-in pattern reduces total latency by ~40% compared to sequential execution.
 
