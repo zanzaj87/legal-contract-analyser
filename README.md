@@ -1,4 +1,4 @@
-# Legal Contract Analyser — Multi-Agent System
+# Legal Contract Analyser with Multi-Agent System
 
 A multi-agent system built with **LangGraph** that analyses legal contracts by extracting clauses, assessing risks against real-world benchmarks, identifying missing protections, and producing executive summaries with an automated quality review loop.
 
